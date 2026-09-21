@@ -16,6 +16,8 @@ A collection of Bash scripts for laboratory assignments for the "System Programm
 - Implemented recursive file search in subdirectories.
 - Added calculation of the total size of found files in kilobytes.
 
+<img width="400" height="auto" alt="Снимок экрана 2026-09-22 001352" src="https://github.com/user-attachments/assets/95c6bae3-dd8f-41be-ba52-aab0af18a94f" />
+
 ## GitHub Actions
 Main verification command:
 ```bash
