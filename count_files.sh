@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Test comment
+
 read -r -p "Enter the path to the directory [/etc]: " TARGET_DIR
 
 TARGET_DIR="${TARGET_DIR:-/etc}"
