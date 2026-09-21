@@ -26,7 +26,7 @@ total_size=$(find "$TARGET_DIR" -type f -name "*.*" -printf '%s\n' 2>/dev/null |
 files=$(count_items "$TARGET_DIR" "f")
 dirs=$(count_items "$TARGET_DIR" "d")
 links=$(count_items "$TARGET_DIR" "l")
-extension=$(count_items "$TARGET_DIR" "f" "conf")
+extension=$(count_items "$TARGET_DIR" "f" "txt")
 
 echo "Statistics for directory $TARGET_DIR:"
 echo "Regular files: $files"
