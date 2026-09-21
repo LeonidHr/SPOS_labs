@@ -1,0 +1,15 @@
+# COmpiled files
+*.o
+*.exe
+
+# Temporary files
+*.tmp
+*~
+
+# IDE files
+.idea/
+.vscode/
+
+#Build directions
+build/
+dist/
