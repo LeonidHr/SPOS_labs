@@ -1,0 +1,70 @@
+.TH COUNT_FILES 1 "October 2026" "count-files 2.0" "User Commands"
+
+.SH NAME
+count_files \- display statistics about a directory
+
+.SH SYNOPSIS
+.B count_files
+
+.SH DESCRIPTION
+.B count_files
+analyzes a directory and displays statistics about its contents.
+
+The program counts regular files, directories, symbolic links,
+files with a specified extension, and calculates the total size
+of files.
+
+The directory and file extension are specified in the configuration
+file
+.I /etc/count-files.conf
+.
+
+The user can change the directory interactively when the program
+starts.
+
+.SH CONFIGURATION
+The configuration file is located at:
+
+.I /etc/count-files.conf
+
+The file contains the following parameters:
+
+.TP
+.B TARGET_DIR
+Default directory to analyze.
+
+.TP
+.B EXTENSION
+File extension to count.
+
+Example configuration:
+
+.nf
+TARGET_DIR="/etc"
+EXTENSION="txt"
+.fi
+
+.SH EXAMPLES
+Run the program:
+
+.B count_files
+
+The program will request the directory:
+
+.nf
+Enter the path to the directory [/etc]:
+.fi
+
+Press Enter to use the default directory.
+
+.SH EXIT STATUS
+.TP
+.B 0
+The program completed successfully.
+
+.TP
+.B 1
+The specified directory does not exist.
+
+.SH AUTHOR
+Leonid Khrystenok
