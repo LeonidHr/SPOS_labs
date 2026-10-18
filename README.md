@@ -1,6 +1,135 @@
 # Linux Lab Scripts
 A collection of Bash scripts for laboratory assignments for the "System Programming and OS Administration" course.
 
+## Lab5
+
+## Description
+
+In this lab a DEB package **`count-files`** was created for Debian-based systems.
+The package installs a Bash script that shows statistics for a directory:
+number of regular files, directories, symbolic links, files with a given extension and total size.
+
+What was done:
+- built a DEB package from the script using `debhelper`;
+- added a configuration file `/etc/count-files.conf`;
+- added `postinst` and `prerm` maintainer scripts;
+- published the package to a PPA on Launchpad and installed it from there;
+- compared the DEB and RPM packaging processes.
+
+---
+
+## Building the package
+
+1. Installed the packaging tools: `build-essential`, `debhelper`, `devscripts`, `dh-make`.
+2. Created the folder `count-files-1.0`, copied `count_files.sh` into it and generated the `debian/` directory with `dh_make`.
+3. Filled in `debian/control` (package name, description, dependencies) and `debian/changelog` (version `1.0-1`).
+4. Wrote `debian/rules` so that the script is installed as `/usr/bin/count_files`.
+5. Built the package with `dpkg-buildpackage -us -uc -b` → `count-files_1.0-1_all.deb`.
+6. Checked the package with `dpkg -I` and `dpkg -c`, installed it with `dpkg -i`, ran `count_files` and removed it with `apt remove`.
+
+---
+
+## Self-study tasks
+
+### Configuration file
+
+`/etc/count-files.conf` sets the default directory and the file extension to count:
+
+```bash
+TARGET_DIR="/boot"
+EXTENSION="txt"
+```
+
+The script sources this file; the user can still enter another path at the prompt.
+The config is installed by `debian/rules`. Since it lives in `/etc`, `debhelper` automatically marks it
+as a **conffile**: local edits are preserved on upgrade.
+
+### Maintainer scripts `postinst` and `prerm`
+
+- **`postinst`** (`configure`): writes an entry to `/var/log/count-files.log`
+  and prints a message with the current config settings.
+- **`prerm`** (`remove` / `upgrade`): prints a message and logs the removal.
+<img width="600" height="auto" alt="8" src="https://github.com/user-attachments/assets/66996213-c9b4-418e-9605-5902d2dbdcb3" />
+<img width="600" height="auto" alt="9" src="https://github.com/user-attachments/assets/dc2e998e-8d88-4126-aa0b-7956319495f8" />
+
+
+### PPA on Launchpad
+
+1. Created a Launchpad account and a GPG key (`gpg --full-generate-key`).
+2. Uploaded the key to `keyserver.ubuntu.com` and imported its fingerprint into Launchpad
+   (confirmed by decrypting the verification email with `gpg -d`).
+3. Created the PPA **`ppa:leonidhr/count-files`**.
+4. Prepared a source package: Ubuntu series in `debian/changelog`, `.orig.tar.gz` archive,
+   signed build with `debuild -S -sa -k<KEYID>`.
+5. Uploaded it with `dput ppa:leonidhr/count-files count-files_1.0-1_source.changes`.
+
+> **Issue:** `launchpad.net` and `keyserver.ubuntu.com` were unreachable from the local network.
+> Solved by using the **Cloudflare WARP** VPN client.
+<img width="600" height="auto" alt="15" src="https://github.com/user-attachments/assets/b94c0a48-ba32-4ce8-8197-6afbefc803b5" />
+
+### RPM vs DEB comparison
+
+| Aspect | DEB | RPM |
+|---|---|---|
+| Package description | `debian/` directory with several files | single `.spec` file |
+| Build tool | `dpkg-buildpackage`, `debuild`, `debhelper` | `rpmbuild` |
+| Build instructions | Makefile `debian/rules` | `%prep`, `%build`, `%install` sections |
+| File list | collected automatically | declared explicitly in `%files` |
+| Config files | files in `/etc` become conffiles automatically | marked with `%config(noreplace)` |
+| Maintainer scripts | `preinst`, `postinst`, `prerm`, `postrm` files | `%pre`, `%post`, `%preun`, `%postun` |
+| Script argument | string: `configure`, `remove`, `upgrade` | number: count of installed versions |
+| Version | `upstream-revision` (`1.0-1`) | `Version` + `Release` |
+| Arch-independent | `Architecture: all` | `BuildArch: noarch` |
+| Package managers | `dpkg` / `apt` | `rpm` / `dnf`, `zypper` |
+| Remove with config | separate `remove` and `purge` | `rpm -e` (modified configs saved as `.rpmsave`) |
+| Hosted repositories | Launchpad PPA (source upload only) | Fedora COPR, openSUSE OBS |
+| Linter | `lintian` | `rpmlint` |
+
+**Conclusion:** both formats describe metadata, dependencies, files and install scripts.
+RPM keeps everything in one explicit `.spec` file. DEB splits it across `debian/`,
+while `debhelper` automates most of the routine work, at the cost of a stricter syntax
+(TABs in `rules`, exact spacing in `changelog`).
+
+---
+
+## Build from source
+
+```bash
+sudo apt install build-essential debhelper devscripts
+cd count-files-1.0
+dpkg-buildpackage -us -uc -b
+```
+
+## Install
+
+From the `.deb` file:
+```bash
+sudo apt install ./packages/count-files_1.0-1_all.deb
+```
+
+From the PPA:
+```bash
+sudo add-apt-repository ppa:leonidhr/count-files
+sudo apt update
+sudo apt install count-files
+```
+
+## Usage
+
+```bash
+count_files
+# Enter the path to the directory [/boot]:
+```
+
+<img width="600" height="auto" alt="6" src="https://github.com/user-attachments/assets/dad79b06-2e2f-4ed1-841e-c88703dc5afa" />
+
+
+## Remove
+
+```bash
+sudo apt remove count-files  
+```
+
 ## Lab4
 
 ## Description
