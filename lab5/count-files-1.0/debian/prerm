@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+case "$1" in remove|deconfigure)
+        echo "count-files is being removed..."
+        echo "$(date '+%F %T') count-files removed" >> /var/log/count-files.log
+        echo "Config /etc/count-files.conf is kept (use 'apt purge' to delete it)"
+        ;;
+    upgrade)
+        echo "count-files is being upgraded..."
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
