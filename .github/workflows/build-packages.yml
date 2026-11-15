@@ -3,20 +3,64 @@ name: Build Packages
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]            
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-rpm:
+  test:
     runs-on: ubuntu-latest
-    container: fedora:latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build tools
+      - name: Syntax check
+        run: bash -n count_files.sh
+
+      - name: ShellCheck
+        run: shellcheck -S error count_files.sh
+
+      - name: Functional test
         run: |
-          dnf install -y rpm-build rpmdevtools
+          chmod +x count_files.sh
+          mkdir -p /tmp/testdir
+          touch /tmp/testdir/a.txt /tmp/testdir/b.txt /tmp/testdir/c.txt
+          OUT=$(./count_files.sh /tmp/testdir)
+          echo "$OUT"
+          echo "$OUT" | grep -q "3"
+
+      - name: Check packaging files exist
+        run: |
+          test -f count-files.conf
+          test -f count_files.1
+          test -f packaging/rpm/count-files.spec
+          test -f packaging/deb/debian/control
+
+  build-rpm:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: [ 43, 44, 45 ]
+    container: fedora:${{ matrix.fedora }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable dnf cache
+        run: echo "keepcache=True" >> /etc/dnf/dnf.conf
+
+      - name: Cache dnf packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/libdnf5
+            /var/cache/dnf
+          key: dnf-fedora${{ matrix.fedora }}-${{ hashFiles('packaging/rpm/count-files.spec') }}
+          restore-keys: dnf-fedora${{ matrix.fedora }}-
+
+      - name: Install build tools
+        run: dnf install -y rpm-build rpmdevtools
 
       - name: Setup RPM build environment
         run: rpmdev-setuptree
@@ -34,26 +78,52 @@ jobs:
       - name: Build RPM
         run: rpmbuild -ba ~/rpmbuild/SPECS/count-files.spec
 
+      - name: Test RPM installation
+        run: |
+          dnf install -y ~/rpmbuild/RPMS/noarch/*.rpm
+          rpm -ql count-files
+          count_files /etc
+
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rpm-package
+          name: rpm-package-fedora${{ matrix.fedora }}
           path: ~/rpmbuild/RPMS/noarch/*.rpm
 
   build-deb:
+    needs: test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu: [ '22.04', '24.04' ]
+    container: ubuntu:${{ matrix.ubuntu }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
     steps:
       - uses: actions/checkout@v4
 
+      - name: Enable apt cache
+        run: |
+          rm -f /etc/apt/apt.conf.d/docker-clean
+          echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-ubuntu${{ matrix.ubuntu }}-${{ hashFiles('packaging/deb/debian/control') }}
+          restore-keys: apt-ubuntu${{ matrix.ubuntu }}-
+
       - name: Install build tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential debhelper devscripts
+          apt-get update
+          apt-get install -y build-essential debhelper
 
       - name: Prepare build directory
         run: |
           mkdir -p build/count-files-1.0
-          cp count_files.sh count-files.conf build/count-files-1.0/ 
+          cp count_files.sh count-files.conf build/count-files-1.0/
           cp -r packaging/deb/debian build/count-files-1.0/
 
       - name: Build DEB
@@ -61,8 +131,43 @@ jobs:
           cd build/count-files-1.0
           dpkg-buildpackage -us -uc -b
 
+      - name: Test DEB installation
+        run: |
+          apt-get install -y ./build/*.deb
+          dpkg -L count-files
+          count_files /etc
+
+      - name: Rename package for this Ubuntu version
+        run: |
+          cd build
+          for f in *.deb; do mv "$f" "${f%.deb}_ubuntu${{ matrix.ubuntu }}.deb"; done
+          ls -l *.deb
+
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: deb-package
+          name: deb-package-ubuntu${{ matrix.ubuntu }}
           path: build/*.deb
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ build-rpm, build-deb ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+
+      - name: List packages
+        run: ls -l packages
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/*
+          generate_release_notes: true
+
