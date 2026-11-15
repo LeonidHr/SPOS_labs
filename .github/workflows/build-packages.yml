@@ -24,7 +24,7 @@ jobs:
       - name: Prepare sources
         run: |
           mkdir -p ~/rpmbuild/SOURCES/count-files-2.0
-          cp count_files.sh count-files.conf ~/rpmbuild/SOURCES/count-files-2.0/
+          cp count_files.sh count-files.conf count_files.1 ~/rpmbuild/SOURCES/count-files-2.0/
           cd ~/rpmbuild/SOURCES
           tar czvf count-files-2.0.tar.gz count-files-2.0
 
