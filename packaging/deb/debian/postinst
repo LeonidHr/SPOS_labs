@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+case "$1" in configure)
+        echo "$(date '+%F %T') count-files installed/upgraded" >> /var/log/count-files.log
+
+        chmod 755 /usr/bin/count_files
+
+        echo "========================================"
+        echo " count-files successfully installed!"
+        echo " Config file: /etc/count-files.conf"
+        echo " Current settings:"
+        grep -E '^(TARGET_DIR|EXTENSION)=' /etc/count-files.conf | sed 's/^/   /'
+        echo " Run: count_files"
+        echo "========================================"
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
