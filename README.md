@@ -1,6 +1,96 @@
 # Linux Lab Scripts
 A collection of Bash scripts for laboratory assignments for the "System Programming and OS Administration" course.
 
+## Lab6
+
+## Description
+
+Automation of building RPM and DEB packages for the `count-files` script with GitHub Actions (CI/CD).
+
+The workflow `.github/workflows/build-packages.yml` starts on every push or pull request to `main`, and can also be started manually (`workflow_dispatch`). It tests the script, builds packages for several distribution versions in parallel, installs each package to check that it works and uploads the packages as artifacts. When a tag `v*` is pushed, a GitHub Release with all packages is created automatically.
+
+Packaging files are stored in the repository:
+
+```
+.github/workflows/build-packages.yml   
+packaging/rpm/count-files.spec         
+packaging/deb/debian/                  
+count_files.sh, count-files.conf, count_files.1
+```
+
+Workflow structure:
+
+```
+test -> build-rpm (Fedora 43, 44, 45) + build-deb (Ubuntu 22.04, 24.04) -> release (only for v* tags)
+```
+
+<img width="600" height="auto" alt="Workflow graph" src="https://github.com/user-attachments/assets/3878fad7-5947-4cde-8337-342074bf4833" />
+
+## Usage
+
+Run the workflow manually: **Actions -> Build Packages -> Run workflow**
+
+Download packages: **Actions -> run -> Artifacts** or **Releases -> v2.0.0 -> Assets**
+
+Create a release:
+
+```
+git tag v2.0.0
+git push origin v2.0.0
+```
+
+Install and run:
+
+```
+sudo dnf install ./count-files-2.0-1.fc45.noarch.rpm
+sudo apt install ./count-files_1.0-1_all_ubuntu24.04.deb
+count_files /etc
+```
+
+<img width="600" height="auto" alt="Workflow runs" src="https://github.com/user-attachments/assets/6a5199d3-5e2b-457e-abf9-4c32a183dfca" />
+
+## Completed tasks
+
+### Building packages
+
+- **RPM** - built in a `fedora` container: `rpm-build` and `rpmdevtools` are installed, sources (`count_files.sh`, `count-files.conf`, `count_files.1`) are packed into `count-files-2.0.tar.gz`, the package is built with `rpmbuild -ba`
+- **DEB** - script, config file and `debian/` directory are copied to the build directory, the package is built with `dpkg-buildpackage -us -uc -b`
+- Built packages are uploaded with `actions/upload-artifact`
+
+<img width="600" height="auto" alt="Basic workflow run" src="https://github.com/user-attachments/assets/53381818-1626-4157-a414-79c5b97f27f4" />
+
+<img width="600" height="auto" alt="build-rpm steps" src="https://github.com/user-attachments/assets/c9abd1aa-9726-45d1-b8f3-e7d3d4cad542" />
+
+### Testing job
+
+- Separate job `test` runs first, builds start only after it succeeds (`needs: test`)
+- `bash -n` - syntax check, `shellcheck` - static analysis
+- Functional test - the script is run on a directory with 3 files and the output is checked
+- Each build job installs the built package (`dnf install` / `apt-get install`) and runs `count_files`
+
+### Releases
+
+- Job `release` runs only for tags `v*` and only after all builds succeeded
+- All artifacts are downloaded with `actions/download-artifact` and attached to a GitHub Release by `softprops/action-gh-release`
+- Release notes are generated automatically
+
+<img width="600" height="auto" alt="Release v2.0.0" src="https://github.com/user-attachments/assets/c80c3e38-d058-4ccd-b63d-d8fdf4a4de43" />
+
+### Build matrix
+
+- `strategy.matrix` builds RPM for Fedora 43, 44, 45 and DEB for Ubuntu 22.04, 24.04 in parallel
+- `fail-fast: false` - a failure on one version does not cancel the others
+- Artifact names contain the distribution version, DEB files get an `_ubuntuXX.XX` suffix so they do not overwrite each other in the release
+
+### Caching
+
+- `dnf` and `apt` packages are cached with `actions/cache`
+- Docker images delete downloaded packages by default, so `keepcache=True` (dnf) and `Keep-Downloaded-Packages` (apt) are enabled first
+- Cache key contains the distribution version and the hash of the spec/control file
+- On the second run the cache (~115 MB) is restored in less than a second
+
+<img width="600" height="auto" alt="Cache restored" src="https://github.com/user-attachments/assets/c62b3329-dada-412e-a435-18157f46aa29" />
+
 ## Lab5
 
 ## Description
