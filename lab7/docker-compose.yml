@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  jenkins-master:
+    build: ./jenkins/master
+    container_name: jenkins-master
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - ./jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+   # environment:
+   #   - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    restart: unless-stopped
+    networks:
+      - jenkins-net
+
+  jenkins-agent:
+    build: ./jenkins/agent
+    container_name: jenkins-agent
+    depends_on:
+      - jenkins-master
+    environment:
+      - JENKINS_URL=http://jenkins-master:8080
+      - JENKINS_AGENT_NAME=agent-1
+      - JENKINS_SECRET=${AGENT1_SECRET}
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    restart: unless-stopped
+    networks:
+      - jenkins-net
+
+  agent-python:
+    build: ./jenkins/agent-python
+    container_name: jenkins-agent-python
+    depends_on:
+      - jenkins-master
+    environment:
+      - JENKINS_URL=http://jenkins-master:8080
+      - JENKINS_AGENT_NAME=agent-python
+      - JENKINS_SECRET=${AGENT_PYTHON_SECRET}
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    restart: unless-stopped
+    networks:
+      - jenkins-net
+
+  agent-node:
+    build: ./jenkins/agent-node
+    container_name: jenkins-agent-node
+    depends_on:
+      - jenkins-master
+    environment:
+      - JENKINS_URL=http://jenkins-master:8080
+      - JENKINS_AGENT_NAME=agent-node
+      - JENKINS_SECRET=${AGENT_NODE_SECRET}
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    restart: unless-stopped
+    networks:
+      - jenkins-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: jenkins-nginx
+    depends_on:
+      - jenkins-master
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    restart: unless-stopped
+    networks:
+      - jenkins-net
+
+networks:
+  jenkins-net:
+    driver: bridge
+
