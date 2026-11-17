@@ -1,6 +1,113 @@
 # Linux Lab Scripts
 A collection of Bash scripts for laboratory assignments for the "System Programming and OS Administration" course.
 
+## Lab7
+
+## Description
+
+Docker environment for Jenkins CI/CD. Jenkins master and build agents run in separate containers described in `lab7/docker-compose.yml` and connected by the bridge network `jenkins-net`.
+
+- **jenkins-master** - image based on `jenkins/jenkins:lts` with Docker CLI and plugins `git`, `workflow-aggregator`, `docker-workflow`, `blueocean`; ports `8080` (web UI) and `50000` (agents)
+- **jenkins-agent** (`agent-1`) - image based on `jenkins/inbound-agent` with `build-essential` and `rpm` for building packages
+- **jenkins-agent-python** (`agent-python`) - `python3`, `pip`, `venv`
+- **jenkins-agent-node** (`agent-node`) - `nodejs`, `npm`
+- **jenkins-nginx** - reverse proxy with SSL in front of Jenkins
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/1399856e-f644-41ed-aa0e-4edd38b82232" />
+
+## Usage
+
+Start the environment:
+
+```
+cd lab7
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Open Jenkins: **https://localhost**
+
+Initial admin password (first start only):
+
+```
+docker exec jenkins-master cat /var/jenkins_home/secrets/initialAdminPassword
+```
+
+Connect agents: **Manage Jenkins -> Nodes -> New Node** (`agent-1`, `agent-python`, `agent-node`, remote root directory `/home/jenkins/agent`, launch by connecting to the controller), then put the secrets into `.env`:
+
+```
+AGENT1_SECRET=...
+AGENT_PYTHON_SECRET=...
+AGENT_NODE_SECRET=...
+```
+
+```
+docker compose up -d
+```
+
+Stop the environment:
+
+```
+docker compose down
+```
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/0c161a0e-7833-4e65-9728-b61d224d433a" />
+
+## Completed tasks
+
+### Additional agents with different tools
+
+- Two more agents added: `agent-python` (Python 3.13) and `agent-node` (Node.js 20), besides `agent-1` (RPM, gcc)
+- Each agent has its own Dockerfile, its own node in Jenkins and labels (`packaging`, `python`, `node`)
+- Agent secrets are stored in `.env`, which is excluded from git
+
+```
+docker exec jenkins-agent rpm --version
+docker exec jenkins-agent-python python3 --version
+docker exec jenkins-agent-node node --version
+```
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/5e980ce3-3396-47d6-8b27-7b061897dfbc" />
+
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/7caad5c1-0478-4a8f-bb93-688b9a17d82e" />
+
+
+### Jenkins data on the host
+
+- Named volume `jenkins_home` replaced with bind mount `./jenkins_home:/var/jenkins_home`
+- Existing data was copied from the volume to the host directory, owner UID `1000` (user `jenkins` in the container)
+- Configuration, users, plugins and nodes stay after `docker compose down` and are available as regular files
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/ad137153-7d59-4652-8cd4-51cd5d899352" />
+
+
+### Automatic backup
+
+- `backup.sh` archives `jenkins_home` to `backups/jenkins_backup_<date>.tar.gz`
+- `workspace`, `caches`, `war` and `logs` are excluded, only the last 3 archives are kept
+- The archive is created in a temporary container with read-only access to the data
+- Started daily by cron:
+
+```
+0 21 * * * /home/leonidhr/projects/linux-lab-scripts/lab7/backup.sh >> /home/leonidhr/projects/linux-lab-scripts/lab7/backups/backup.log 2>&1
+```
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/dc18deff-acab-41dd-8cbe-09782d02c540" />
+
+### SSL for Jenkins
+
+- Self-signed certificate created with `openssl` (`CN=localhost`, valid for 1 year)
+- `nginx` container works as a reverse proxy: `https://localhost` (443) -> `jenkins-master:8080`
+- HTTP requests (80) are redirected to HTTPS with `301 Moved Permanently`
+- `X-Forwarded-Proto` header tells Jenkins that it works over HTTPS, Jenkins URL is set to `https://localhost/`
+- Private key `nginx/certs/jenkins.key` is excluded from git
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/afd77066-6877-409e-b96e-77b0ef1cda67" />
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/a0e2fbfa-dc68-4282-83e0-5b94d15ecde1" />
+
 ## Lab6
 
 ## Description
