@@ -1,6 +1,126 @@
 # Linux Lab Scripts
 A collection of Bash scripts for laboratory assignments for the "System Programming and OS Administration" course.
 
+## Lab8
+
+## Description
+
+Jenkins Pipeline for building, testing and publishing `count-files` packages. The pipeline is described in the `Jenkinsfile` in the repository root and runs in the Jenkins environment from Lab7 (job `count-files-pipeline`, *Pipeline script from SCM*, branch `*/main`).
+
+Stages run in Docker containers on the built-in node, so every stage gets a clean environment of the needed distribution:
+
+```
+Checkout -> ShellCheck -> Test Script -> Build RPM | Build DEB -> Test RPM | Test DEB -> Publish RPM | Publish DEB -> Tag Release
+```
+
+- **Checkout** - clone the repository from GitHub
+- **ShellCheck** - static analysis of `count_files.sh`
+- **Test Script** - `bash -n` and a test run of the script
+- **Build RPM** - `rpmbuild` in `fedora:latest`
+- **Build DEB** - `dpkg-buildpackage` in `ubuntu:latest`
+- **Test RPM / DEB Installation** - install the package in `oraclelinux:8` / `ubuntu:latest`, run `count_files`, remove the package
+- **Publish** - copy packages to YUM and APT repositories
+- **Tag Release** - create git tag `jenkins-v<version>` on GitHub
+- **post** - archive artifacts, send email, clean workspace
+
+Changes compared to the lab instructions:
+
+- `agent { label 'built-in' }` instead of `agent any` - with `agent any` docker stages ran on `agent-python`, which has no Docker (`docker: not found`, build #1)
+- `reuseNode true` in docker stages - all stages share one workspace, so built packages are visible in the test stages
+- `group_add` with the GID of `/var/run/docker.sock` added to `jenkins-master` in `lab7/docker-compose.yml` - access to Docker for the `jenkins` user
+- `PACKAGE_VERSION = '2.0'` and `count-files.conf`, `count_files.1` are copied - the spec file from Lab4 is version 2.0
+- `cleanup { cleanWs() }` instead of `always` - `always` runs before `success`, so `archiveArtifacts` would find an empty workspace
+- `devscripts` removed from DEB build dependencies - not needed for `dpkg-buildpackage`, but added ~370 packages (build time 57 min -> 10 min)
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/7b0a5e3d-3c44-4906-931c-1915c6de50e3" />
+
+## Usage
+
+Run the pipeline: **Jenkins -> count-files-pipeline -> Build Now**
+
+View stages: **Open Blue Ocean** or **Stages**
+
+Download packages: **Build -> Build Artifacts**
+
+Install from the repository (Fedora):
+
+```
+cat > /etc/yum.repos.d/count-files.repo << EOF
+[count-files]
+name=count-files
+baseurl=https://localhost/repo/rpm
+enabled=1
+gpgcheck=0
+sslverify=0
+EOF
+
+dnf --disablerepo="*" --enablerepo=count-files install -y count-files
+count_files
+```
+
+APT repository: `https://localhost/repo/deb/`
+
+<img width="800" height="auto" alt="image" src="https://github.com/user-attachments/assets/cfa4861b-be10-4ac9-844f-450a1eedb974" />
+
+<img width="600" height="auto" alt="image" src="https://github.com/user-attachments/assets/06813a49-30ed-4cf8-bb5f-fd1e48531fcf" />
+
+
+## Completed tasks
+
+### ShellCheck static analysis
+
+- Stage `ShellCheck` runs in the `koalaman/shellcheck-alpine:stable` container before tests
+- Full report is saved to `shellcheck-report.txt` and archived with the packages
+- `shellcheck -S error` stops the pipeline if the script has errors
+- Report is empty (0 B) - no warnings for `count_files.sh`
+
+### Parallel build of RPM and DEB
+
+- `Build RPM` and `Build DEB` run in a `parallel` block, as well as the test and publish stages
+- `failFast true` - if one branch fails, the other one is stopped
+- Both branches use the same workspace (`reuseNode true`) and create different files
+
+<img width="800" height="auto" alt="image" src="https://github.com/user-attachments/assets/ef93268d-1b19-4d64-b915-656c95ff3f86" />
+
+
+### Email notifications
+
+- Plugin Email Extension, Gmail SMTP (`smtp.gmail.com:465`, SSL, app password stored in Jenkins credentials)
+- `post -> success` - email with the package version and links to the build and artifacts
+- `post -> failure` - email with the console log attached
+- Recipient is taken from Jenkins settings (`$DEFAULT_RECIPIENTS`), not stored in the repository
+
+<img width="800" height="auto" alt="image" src="https://github.com/user-attachments/assets/472cf7a6-ce8b-445a-8c9c-cb9e08e0c521" />
+
+
+### Publishing packages to a repository
+
+- Repositories are stored in `/var/jenkins_home/repo` and served by nginx from Lab7 at `https://localhost/repo/`
+- RPM: packages are copied to `repo/rpm`, metadata is created with `createrepo_c`
+- DEB: packages are copied to `repo/deb`, `Packages`, `Packages.gz` and `Release` are created with `apt-ftparchive`
+- Package installs from the repository with `dnf` in a clean Fedora container
+
+<img width="800" height="auto" alt="image" src="https://github.com/user-attachments/assets/8ad80569-d450-4b52-937e-c3d99e97aa70" />
+
+<img width="800" height="auto" alt="image" src="https://github.com/user-attachments/assets/d2695ac0-f491-41b6-8cc1-2d84d4150f7d" />
+
+<img width="800" height="auto" alt="image" src="https://github.com/user-attachments/assets/af32d801-590e-4b1c-95e6-9144eaf2738f" />
+
+
+### Tagging and versioning
+
+- Package version is `<version>-<build number>`: `PACKAGE_VERSION` + `BUILD_NUMBER` (e.g. `2.0-4`)
+- RPM: `Version` and `Release` in the spec file are set with `sed` -> `count-files-2.0-4.fc45.noarch.rpm`
+- DEB: version in `debian/changelog` is set with `sed` -> `count-files_2.0-4_all.deb`
+- Build name in Jenkins: `#4 v2.0-4`
+- Stage `Tag Release` creates tag `jenkins-v2.0-4` and pushes it to GitHub, the GitHub token is stored in Jenkins credentials (`github-creds`)
+- Prefix `jenkins-` does not trigger the release workflow from Lab6 (tags `v*`)
+
+<img width="800" height="auto" alt="image" src="https://github.com/user-attachments/assets/577392f0-6dba-4c15-a006-ab4513aed0c4" />
+
+<img width="800" height="auto" alt="image" src="https://github.com/user-attachments/assets/a4d16c1f-944d-41d9-bac7-18e03efb644b" />
+
+
 ## Lab7
 
 ## Description
