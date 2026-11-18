@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'built-in' }
 
     environment {
         PACKAGE_NAME = 'count-files'
@@ -27,6 +27,7 @@ pipeline {
                 docker {
                     image 'fedora:latest'
                     args '-u root'
+                    reuseNode true
                 }
             }
             steps {
@@ -34,12 +35,13 @@ pipeline {
                     dnf install -y rpm-build rpmdevtools
                     rpmdev-setuptree
                     mkdir -p ~/rpmbuild/SOURCES/${PACKAGE_NAME}-${PACKAGE_VERSION}
-                    cp count_files.sh ~/rpmbuild/SOURCES/${PACKAGE_NAME}-${PACKAGE_VERSION}/
+                    cp count_files.sh count-files.conf count_files.1 ~/rpmbuild/SOURCES/${PACKAGE_NAME}-${PACKAGE_VERSION}/
                     cd ~/rpmbuild/SOURCES
                     tar czvf ${PACKAGE_NAME}-${PACKAGE_VERSION}.tar.gz ${PACKAGE_NAME}-${PACKAGE_VERSION}
                     cp ${WORKSPACE}/packaging/rpm/count-files.spec ~/rpmbuild/SPECS/
                     rpmbuild -ba ~/rpmbuild/SPECS/count-files.spec
                     cp ~/rpmbuild/RPMS/noarch/*.rpm ${WORKSPACE}/
+                    chown -R 1000:1000 ${WORKSPACE}
                 '''
             }
         }
@@ -49,18 +51,23 @@ pipeline {
                 docker {
                     image 'ubuntu:latest'
                     args '-u root'
+                    reuseNode true
                 }
+            }
+            environment {
+                DEBIAN_FRONTEND = 'noninteractive'
             }
             steps {
                 sh '''
                     apt-get update
                     apt-get install -y build-essential debhelper devscripts
                     mkdir -p build/${PACKAGE_NAME}-${PACKAGE_VERSION}
-                    cp count_files.sh build/${PACKAGE_NAME}-${PACKAGE_VERSION}/
+                    cp count_files.sh count-files.conf build/${PACKAGE_NAME}-${PACKAGE_VERSION}/
                     cp -r packaging/deb/debian build/${PACKAGE_NAME}-${PACKAGE_VERSION}/
                     cd build/${PACKAGE_NAME}-${PACKAGE_VERSION}
                     dpkg-buildpackage -us -uc -b
                     cp ../*.deb ${WORKSPACE}/
+                    chown -R 1000:1000 ${WORKSPACE}
                 '''
             }
         }
@@ -70,6 +77,7 @@ pipeline {
                 docker {
                     image 'oraclelinux:8'
                     args '-u root'
+                    reuseNode true
                 }
             }
             steps {
@@ -86,6 +94,7 @@ pipeline {
                 docker {
                     image 'ubuntu:latest'
                     args '-u root'
+                    reuseNode true
                 }
             }
             steps {
@@ -106,7 +115,7 @@ pipeline {
         failure {
             echo 'Build failed!'
         }
-        always {
+        cleanup {
             cleanWs()
         }
     }

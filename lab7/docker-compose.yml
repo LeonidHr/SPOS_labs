@@ -4,6 +4,8 @@ services:
   jenkins-master:
     build: ./jenkins/master
     container_name: jenkins-master
+    group_add:
+      - "116"
     ports:
       - "8080:8080"
       - "50000:50000"
