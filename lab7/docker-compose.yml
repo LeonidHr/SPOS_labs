@@ -71,6 +71,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
+      - ./jenkins_home/repo:/usr/share/nginx/repo:ro
     restart: unless-stopped
     networks:
       - jenkins-net
